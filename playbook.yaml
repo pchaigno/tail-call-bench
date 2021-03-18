@@ -1,0 +1,115 @@
+---
+- hosts: all
+  strategy: free
+  become: true
+  tasks:
+  - name: List kernel packages
+    find:
+      paths: "{{ playbook_dir }}"
+      patterns: 'linux-*{{ kernel }}*.deb'
+    connection: local
+    become: false
+    register: kernel_pkgs
+    failed_when: kernel_pkgs.matched == 0
+
+  - name: Install basic packages
+    apt:
+      name: "{{ packages }}"
+      state: present
+      update_cache: yes
+    vars:
+      packages:
+      - python3-pip
+
+  - name: Install docker-py
+    pip:
+      name: docker>1.7.0
+
+  - name: Add the apt signing key for Docker
+    apt_key:
+      url: https://download.docker.com/linux/ubuntu/gpg
+      state: present
+
+  - name: Add the apt repository for the stable Docker version
+    apt_repository:
+      repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable
+      state: present
+
+  - name: Install Docker and its dependencies
+    apt:
+      name: "{{ packages }}"
+      state: present
+      update_cache: yes
+    vars:
+      packages:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+    notify:
+      - docker status
+
+  - name: Copy the kernel packages to the node
+    ansible.builtin.copy:
+      src: "{{ item.path }}"
+      dest: /root
+      mode: 0777
+      force: no
+    with_items: "{{ kernel_pkgs.files }}"
+
+  - name: List packages
+    find:
+      paths: /root
+      patterns: '*.deb'
+    register: pkgs
+
+  - name: Install kernel packages
+    apt:
+      deb: "{{ item.path }}"
+    with_items: "{{ pkgs.files }}"
+    ignore_errors: yes
+
+  - name: Change boot order
+    ansible.builtin.lineinfile:
+      path: /etc/default/grub
+      regexp: 'GRUB_DEFAULT='
+      line: 'export GRUB_DEFAULT="1>{{ boot_order }}"'
+
+  - name: Update grub
+    command: update-grub
+
+  - name: Baseline measurement
+    include_tasks: measure.yaml
+
+  - name: Dump kernel version
+    command: uname -a
+    register: kernel_version
+
+  - name: Dump retpoline status
+    command: cat /sys/devices/system/cpu/vulnerabilities/spectre_v2
+    register: retpoline_status
+    ignore_errors: yes
+
+  - name: Save results header
+    ansible.builtin.lineinfile:
+      path: "{{ result_dir }}/{{ output }}"
+      line: "{{ kernel_version.stdout }}\n{{ retpoline_status.stdout }}"
+      create: yes
+    connection: local
+    become: false
+    when: retpoline_status is defined
+
+  - name: Save results header
+    ansible.builtin.lineinfile:
+      path: "{{ result_dir }}/{{ output }}"
+      line: "{{ kernel_version.stdout }}"
+      create: yes
+    connection: local
+    become: false
+    when: retpoline_status is not defined
+
+  - include_tasks: measure.yaml
+    with_sequence: start=1 end="{{ nb_measures }}"
+
+  handlers:
+    - name: docker status
+      service: name=docker state=started

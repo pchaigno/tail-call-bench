@@ -1,0 +1,20 @@
+---
+  - name: Run tail-calls image
+    command: docker run --privileged -it docker.io/pchaigno/tail-calls:v1.0 ./run.sh 33 "{{ nb_runs }}"
+    register: test_results
+
+  - name: Print results
+    ansible.builtin.debug:
+      var: test_results.stdout_lines
+      verbosity: 0
+
+  - name: Save results
+    ansible.builtin.lineinfile:
+      path: "~/blog/pchaigno.github.io/assets/tail-call-cost/{{ output }}"
+      line: "{{ 1000000 | random(start=1) }} {{ test_results.stdout }}"
+      create: yes
+    connection: local
+    become: false
+
+  - name: Reboot after each measurement
+    reboot:
