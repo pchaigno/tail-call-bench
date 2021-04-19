@@ -6,6 +6,8 @@ This repository contains an Ansible playbook and the sources of a Docker image t
 It measures the cost of tail call chains of varying lengths using [`kern.c`](image/kern.c) as the BPF program.
 The Docker image is available at `docker.io/pchaigno/tail-calls:v1.0`.
 
+Results produced by these tools are presented at https://pchaigno.github.io/ebpf/2021/03/22/cost-bpf-tail-calls.html.
+
 ## Requirements
 
 The Ansible playbook was developed to work with [Packet](https://www.packet.com/)'s Ubuntu 20.04 and may not work with other distributions.
