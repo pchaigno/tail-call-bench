@@ -5,13 +5,36 @@ struct bpf_map_def SEC("maps") progs = {
 	.type = BPF_MAP_TYPE_PROG_ARRAY,
 	.key_size = sizeof(__u32),
 	.value_size = sizeof(__u32),
-	.max_entries = 34,
+	.max_entries = 35,
+};
+
+struct bpf_map_def SEC("maps") count = {
+	.type = BPF_MAP_TYPE_ARRAY,
+	.key_size = sizeof(__u32),
+	.value_size = sizeof(__u32),
+	.max_entries = 2,
 };
 
 #define PROG(X) SEC("action/prog" #X)			\
 int bpf_prog ## X(void *ctx) {			\
 	bpf_tail_call(ctx, &progs, X+1);	\
 	return 0;				\
+}
+
+SEC("action/prog33")
+int bpf_prog33(void *ctx) {
+	__u32 zero = 0;
+	__u32 one = 1;
+	bpf_map_update_elem(&count, &zero, &one, 0);
+	bpf_tail_call(ctx, &progs, 34);
+	return 0;
+}
+
+SEC("action/prog34")
+int bpf_prog34(void *ctx) {
+        __u32 one = 1;
+        bpf_map_update_elem(&count, &one, &one, 0);
+	return 0;
 }
 
 PROG(0)
@@ -47,4 +70,3 @@ PROG(29)
 PROG(30)
 PROG(31)
 PROG(32)
-PROG(33)
